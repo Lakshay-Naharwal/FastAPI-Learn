@@ -3,7 +3,7 @@ from fastapi import FastAPI , Path , HTTPException , Query
 import json
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel ,Field  , computed_field
-from typing import Annotated , Literal
+from typing import Annotated , Literal , Optional
 
 class Patient(BaseModel):
     id: Annotated[str, Field(...,description="ID of the Patient in Database", example="P001")]
@@ -30,6 +30,14 @@ class Patient(BaseModel):
             return "Overweight"
         else:
             return "Obesity"
+
+class PatientUpdate(BaseModel):
+    name: Annotated[Optional[str], Field(None,description="Name of the Patient", example="John Doe")]
+    age: Annotated[Optional[int], Field(None,gt=0,lt=120, description="Age of the Patient")]
+    height: Annotated[Optional[float], Field(None, gt=0 , description="Height of the Patient in meters")]
+    weight: Annotated[Optional[float], Field(None,gt=0, description="Weight of the Patient in kilograms")]
+    gender: Annotated[Optional[Literal['Male', 'Female','Other']], Field(None, description="Gender of the Patient")]
+    city: Annotated[Optional[str], Field(None, description="City of the Patient", example="New York")]
 
 def load_json_file(file_path):
     with open(file_path, 'r') as file:
@@ -85,3 +93,23 @@ def create_patient(patient: Patient):
     data[patient.id] = patient.model_dump(exclude={'id'})
     save_data(data, 'D:\ML Projects\FastAPI_Learning\patients.json')
     return JSONResponse(content={"message": "Patient created successfully."}, status_code=201)
+
+@app.put("/update/{patient_id}")
+def update_patient(patient_id: str, patient_update: PatientUpdate):
+    data = load_json_file('patients.json')
+
+    if patient_id not in data:
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    existing_patient_data = data[patient_id]
+    updated_data = patient_update.model_dump(exclude_unset=True)
+
+    # Update the existing patient data with the new values
+    for key, value in updated_data.items():
+        existing_patient_data[key] = value
+    existing_patient_data['id'] = patient_id
+    patient_obj = Patient(**existing_patient_data)
+    existing_patient_data = patient_obj.model_dump(exclude={'id'})
+    data[patient_id] = existing_patient_data
+    save_data(data, 'D:\\ML Projects\\FastAPI_Learning\\patients.json')
+    return JSONResponse(content={"message": "Patient updated successfully."}, status_code=200)
